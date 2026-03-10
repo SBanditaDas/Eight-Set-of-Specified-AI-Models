@@ -1,0 +1,5 @@
+{
+  "name": "AI Model Explorer",
+  "description": "A comprehensive dashboard to explore and interact with various AI model architectures: LLM, LCM, LAM, MoE, VLM, SLM, MLM, and SAM.",
+  "requestFramePermissions": ["camera"]
+}
