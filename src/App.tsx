@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { 
-  MessageSquare, Eye, Zap, MousePointer2, Cpu, 
+import {
+  MessageSquare, Eye, Zap, MousePointer2, Cpu,
   Network, Ghost, BoxSelect, Send, Image as ImageIcon,
   Loader2, Play, CheckCircle2, AlertCircle, Menu, X
 } from 'lucide-react';
@@ -10,17 +10,30 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { MODELS, type ModelType } from './types';
 import * as gemini from './services/gemini';
+import * as hf from './services/huggingface';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function getErrorMessage(e: unknown): string {
+  const message = (e as Error).message;
+  if (message.includes('429') || message.toLowerCase().includes('quota exceeded')) {
+    return 'Quota Exceeded: The model has reached its daily limit. Please try again later or switch models.';
+  }
+  return 'Error: ' + message;
+}
+
 export default function App() {
   const [activeModel, setActiveModel] = useState<ModelType>('LLM');
+  const [provider, setProvider] = useState<'gemini' | 'hf'>('gemini');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
+
+  // Helper to get active service
+  const ai = provider === 'gemini' ? gemini : hf;
 
   return (
     <div className="flex h-screen bg-[#0A0A0A] text-white font-sans overflow-hidden relative">
@@ -53,7 +66,32 @@ export default function App() {
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
+        {/* Provider Switcher */}
+        <div className="p-4 px-6 border-b border-white/10">
+          <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-3">AI Engine</p>
+          <div className="flex p-1 bg-white/5 rounded-xl border border-white/5">
+            <button
+              onClick={() => setProvider('gemini')}
+              className={cn(
+                "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
+                provider === 'gemini' ? "bg-emerald-500 text-black shadow-lg" : "text-white/40 hover:text-white"
+              )}
+            >
+              Gemini
+            </button>
+            <button
+              onClick={() => setProvider('hf')}
+              className={cn(
+                "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
+                provider === 'hf' ? "bg-emerald-500 text-black shadow-lg" : "text-white/40 hover:text-white"
+              )}
+            >
+              Open Source
+            </button>
+          </div>
+        </div>
+
         <div className="p-4 px-6">
           <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Model Architectures</p>
         </div>
@@ -68,8 +106,8 @@ export default function App() {
               }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
-                activeModel === model.id 
-                  ? "bg-white/10 text-white" 
+                activeModel === model.id
+                  ? "bg-white/10 text-white"
                   : "text-white/50 hover:bg-white/5 hover:text-white"
               )}
             >
@@ -84,9 +122,9 @@ export default function App() {
                 <div className="text-[10px] opacity-50 truncate w-32">{model.fullName}</div>
               </div>
               {activeModel === model.id && (
-                <motion.div 
+                <motion.div
                   layoutId="active-pill"
-                  className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" 
+                  className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
                 />
               )}
             </button>
@@ -94,17 +132,17 @@ export default function App() {
         </nav>
 
         <div className="p-6 border-t border-white/10 text-[10px] text-white/30 text-center">
-          Powered by Gemini 3.1 & 2.5
+          Powered by {provider === 'gemini' ? 'Gemini 1.5 Flash' : 'Hugging Face (Llama 3 / Mistral / Flux)'}
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col relative overflow-hidden bg-[#0A0A0A]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.05),transparent_50%)] pointer-events-none" />
-        
+
         <header className="h-20 border-b border-white/10 flex items-center justify-between px-4 lg:px-8 bg-[#0A0A0A]/80 backdrop-blur-xl z-10">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={toggleSidebar}
               className="lg:hidden p-2 bg-white/5 rounded-lg border border-white/10"
             >
@@ -137,7 +175,7 @@ export default function App() {
               transition={{ duration: 0.2 }}
               className="max-w-4xl mx-auto h-full"
             >
-              {renderModelSection(activeModel)}
+              {renderModelSection(activeModel, ai)}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -159,22 +197,22 @@ function getIcon(id: ModelType, className: string) {
   }
 }
 
-function renderModelSection(id: ModelType) {
+function renderModelSection(id: ModelType, ai: any) {
   switch (id) {
-    case 'LLM': return <LLMSection />;
-    case 'VLM': return <VLMSection />;
-    case 'LCM': return <LCMSection />;
-    case 'LAM': return <LAMSection />;
-    case 'SLM': return <SLMSection />;
+    case 'LLM': return <LLMSection ai={ai} />;
+    case 'VLM': return <VLMSection ai={ai} />;
+    case 'LCM': return <LCMSection ai={ai} />;
+    case 'LAM': return <LAMSection ai={ai} />;
+    case 'SLM': return <SLMSection ai={ai} />;
     case 'MoE': return <MoESection />;
-    case 'MLM': return <MLMSection />;
-    case 'SAM': return <SAMSection />;
+    case 'MLM': return <MLMSection ai={ai} />;
+    case 'SAM': return <SAMSection ai={ai} />;
   }
 }
 
 // --- Section Components ---
 
-function LLMSection() {
+function LLMSection({ ai }: { ai: any }) {
   const [input, setInput] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
@@ -183,10 +221,10 @@ function LLMSection() {
     if (!input.trim()) return;
     setLoading(true);
     try {
-      const res = await gemini.chat(input);
+      const res = await ai.chat(input);
       setResponse(res || 'No response');
     } catch (e) {
-      setResponse('Error: ' + (e as Error).message);
+      setResponse(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -212,7 +250,7 @@ function LLMSection() {
           )}
         </div>
       </div>
-      
+
       <div className="relative">
         <textarea
           value={input}
@@ -221,7 +259,7 @@ function LLMSection() {
           className="w-full bg-[#1A1A1A] border border-white/10 rounded-2xl p-4 pr-14 focus:outline-none focus:border-emerald-500/50 transition-colors resize-none h-32"
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
         />
-        <button 
+        <button
           onClick={handleSend}
           disabled={loading}
           className="absolute bottom-4 right-4 p-2 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-colors disabled:opacity-50"
@@ -233,7 +271,7 @@ function LLMSection() {
   );
 }
 
-function VLMSection() {
+function VLMSection({ ai }: { ai: any }) {
   const [image, setImage] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('Describe this image in detail.');
   const [response, setResponse] = useState('');
@@ -256,10 +294,10 @@ function VLMSection() {
     setLoading(true);
     try {
       const base64 = image.split(',')[1];
-      const res = await gemini.analyzeImage(base64, prompt);
+      const res = await ai.analyzeImage(base64, prompt);
       setResponse(res || 'No analysis');
     } catch (e) {
-      setResponse('Error: ' + (e as Error).message);
+      setResponse(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -268,7 +306,7 @@ function VLMSection() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
       <div className="space-y-4">
-        <div 
+        <div
           onClick={() => fileInputRef.current?.click()}
           className="aspect-square bg-white/5 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500/30 transition-colors overflow-hidden relative group"
         >
@@ -285,14 +323,14 @@ function VLMSection() {
           </div>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-        
+
         <input
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50"
           placeholder="What should the VLM look for?"
         />
-        
+
         <button
           onClick={handleAnalyze}
           disabled={loading || !image}
@@ -322,7 +360,7 @@ function VLMSection() {
   );
 }
 
-function LCMSection() {
+function LCMSection({ ai }: { ai: any }) {
   const [prompt, setPrompt] = useState('A futuristic laboratory with holographic displays, cinematic lighting, 8k');
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -331,10 +369,10 @@ function LCMSection() {
     if (!prompt.trim()) return;
     setLoading(true);
     try {
-      const res = await gemini.generateImage(prompt);
+      const res = await ai.generateImage(prompt);
       setImage(res);
     } catch (e) {
-      alert((e as Error).message);
+      alert(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -378,7 +416,7 @@ function LCMSection() {
           </div>
         )}
       </div>
-      
+
       <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
         <h4 className="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-2 flex items-center gap-2">
           <AlertCircle className="w-3 h-3" />
@@ -392,7 +430,7 @@ function LCMSection() {
   );
 }
 
-function LAMSection() {
+function LAMSection({ ai }: { ai: any }) {
   const [task, setTask] = useState('Turn on the living room lights and set the temperature to 72 degrees.');
   const [steps, setSteps] = useState<{ action: string; params: string; status: 'pending' | 'done' }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -401,7 +439,7 @@ function LAMSection() {
     setLoading(true);
     setSteps([]);
     try {
-      const calls = await gemini.simulateAction(task);
+      const calls = await ai.simulateAction(task);
       if (calls) {
         const newSteps = calls.map(c => ({
           action: c.args.action as string,
@@ -409,7 +447,7 @@ function LAMSection() {
           status: 'pending' as const
         }));
         setSteps(newSteps);
-        
+
         // Simulate execution
         for (let i = 0; i < newSteps.length; i++) {
           await new Promise(r => setTimeout(r, 1000));
@@ -479,7 +517,7 @@ function LAMSection() {
   );
 }
 
-function SLMSection() {
+function SLMSection({ ai }: { ai: any }) {
   const [input, setInput] = useState('Write a haiku about efficiency.');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
@@ -489,11 +527,11 @@ function SLMSection() {
     const start = Date.now();
     setLoading(true);
     try {
-      const res = await gemini.chat(input, gemini.models.slm);
+      const res = await ai.chat(input, ai.models.slm);
       setResponse(res || '');
       setLatency(Date.now() - start);
     } catch (e) {
-      setResponse('Error: ' + (e as Error).message);
+      setResponse(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -504,7 +542,7 @@ function SLMSection() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 lg:p-6 bg-white/5 border border-white/10 rounded-2xl">
           <div className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Model Name</div>
-          <div className="text-sm lg:text-lg font-bold text-emerald-500">Gemini 3 Flash</div>
+          <div className="text-sm lg:text-lg font-bold text-emerald-500">{ai.models.slm}</div>
         </div>
         <div className="p-4 lg:p-6 bg-white/5 border border-white/10 rounded-2xl">
           <div className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Optimization</div>
@@ -585,7 +623,7 @@ function MoESection() {
             const angle = (i / experts.length) * Math.PI * 2;
             const x = Math.cos(angle) * 160;
             const y = Math.sin(angle) * 160;
-            
+
             return (
               <motion.div
                 key={expert.name}
@@ -597,8 +635,8 @@ function MoESection() {
               >
                 <div className={cn(
                   "px-4 py-2 rounded-xl border transition-all duration-500",
-                  expert.active 
-                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]" 
+                  expert.active
+                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
                     : "bg-white/5 border-white/10 text-white/20"
                 )}>
                   <div className="text-[10px] font-bold uppercase tracking-tight">{expert.name}</div>
@@ -610,11 +648,11 @@ function MoESection() {
                     className="absolute top-1/2 left-1/2 -z-10"
                   >
                     <svg className="absolute top-0 left-0 w-[200px] h-[200px] -translate-x-1/2 -translate-y-1/2 overflow-visible pointer-events-none">
-                      <line 
-                        x1="100" y1="100" 
-                        x2={100 - x} y2={100 - y} 
-                        stroke="currentColor" 
-                        strokeWidth="1" 
+                      <line
+                        x1="100" y1="100"
+                        x2={100 - x} y2={100 - y}
+                        stroke="currentColor"
+                        strokeWidth="1"
                         strokeDasharray="4 4"
                         className="text-emerald-500/30"
                       />
@@ -641,7 +679,7 @@ function MoESection() {
   );
 }
 
-function MLMSection() {
+function MLMSection({ ai }: { ai: any }) {
   const [text, setText] = useState('The quick brown [MASK] jumps over the lazy [MASK].');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
@@ -650,10 +688,10 @@ function MLMSection() {
     setLoading(true);
     try {
       const prompt = `You are a Masked Language Model. Fill in the [MASK] tokens in this sentence: "${text}". Provide the full sentence with the most likely tokens.`;
-      const res = await gemini.chat(prompt);
+      const res = await ai.chat(prompt);
       setResult(res || '');
     } catch (e) {
-      setResult('Error: ' + (e as Error).message);
+      setResult(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -697,7 +735,7 @@ function MLMSection() {
   );
 }
 
-function SAMSection() {
+function SAMSection({ ai }: { ai: any }) {
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [detections, setDetections] = useState<any[]>([]);
@@ -720,7 +758,7 @@ function SAMSection() {
     setLoading(true);
     try {
       const base64 = image.split(',')[1];
-      const res = await gemini.segmentImage(base64);
+      const res = await ai.segmentImage(base64);
       const parsed = JSON.parse(res || '[]');
       setDetections(Array.isArray(parsed) ? parsed : []);
     } catch (e) {
@@ -753,7 +791,7 @@ function SAMSection() {
             <>
               <img src={image} alt="Source" className="w-full h-full object-cover" />
               {detections.map((det, i) => {
-                const [ymin, xmin, ymax, xmax] = det.box_2d || det.bbox || [0,0,0,0];
+                const [ymin, xmin, ymax, xmax] = det.box_2d || det.bbox || [0, 0, 0, 0];
                 return (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -780,7 +818,7 @@ function SAMSection() {
               <p className="text-xs">Upload an image to begin segmentation</p>
             </div>
           )}
-          
+
           {loading && (
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
               <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />

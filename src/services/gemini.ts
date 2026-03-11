@@ -4,10 +4,10 @@ const apiKey = process.env.GEMINI_API_KEY || "";
 const ai = new GoogleGenAI({ apiKey });
 
 export const models = {
-  llm: "gemini-3.1-pro-preview",
-  vlm: "gemini-3.1-pro-preview",
-  slm: "gemini-3-flash-preview",
-  image: "gemini-2.5-flash-image",
+  llm: "gemini-flash-latest",
+  vlm: "gemini-flash-latest",
+  slm: "gemini-flash-latest",
+  image: "gemini-2.0-flash",
 };
 
 export async function chat(message: string, model: string = models.llm) {
@@ -33,20 +33,28 @@ export async function analyzeImage(imageBuffer: string, prompt: string) {
   return response.text;
 }
 
-export async function generateImage(prompt: string) {
-  const response = await ai.models.generateContent({
-    model: models.image,
-    contents: [{ parts: [{ text: prompt }] }],
-    config: {
-      imageConfig: {
-        aspectRatio: "1:1",
-      },
-    },
-  });
+import * as hf from "./huggingface";
 
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+export async function generateImage(prompt: string) {
+  try {
+    const response = await ai.models.generateContent({
+      model: models.image,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {},
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+  } catch (e) {
+    console.warn("Gemini image generation failed, falling back to Hugging Face:", e);
+    try {
+      return await hf.generateImage(prompt);
+    } catch (hfError) {
+      console.error("Hugging Face fallback also failed:", hfError);
+      throw e; // Re-throw the original Gemini error if fallback fails
     }
   }
   throw new Error("No image generated");
