@@ -131,9 +131,6 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-6 border-t border-white/10 text-[10px] text-white/30 text-center">
-          Powered by {provider === 'gemini' ? 'Gemini 1.5 Flash' : 'Hugging Face (Llama 3 / Mistral / Flux)'}
-        </div>
       </aside>
 
       {/* Main Content */}
