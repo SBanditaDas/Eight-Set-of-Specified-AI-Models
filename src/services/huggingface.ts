@@ -1,6 +1,6 @@
 import { HfInference } from "@huggingface/inference";
 
-const hfToken = process.env.VITE_HF_TOKEN || "";
+const hfToken = import.meta.env.VITE_HF_TOKEN || "";
 const hf = new HfInference(hfToken);
 
 export const models = {
